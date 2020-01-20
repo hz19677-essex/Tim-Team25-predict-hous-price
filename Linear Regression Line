@@ -1,0 +1,71 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import LabelEncoder
+from sklearn.linear_model  import LinearRegression 
+import seaborn as sns
+
+def bestmodel(model, train_x, x_val, train_y, y_val):
+    model.fit(train_x, train_y)
+    predictions = model.predict(x_val)
+    return mean_absolute_error(y_val, predictions)
+
+#reading data:
+test = pd.read_csv("../input/house-prices-advanced-regression-techniques/test.csv")
+train = pd.read_csv("../input/house-prices-advanced-regression-techniques/train.csv")
+train.dropna(axis=0,subset=['SalePrice'],inplace=True)
+Train_y = train.SalePrice   #The target columns without NaN
+train.drop(['SalePrice'],axis=1,inplace=True)  #The predictive columns
+#for category part:
+drop_X = train.select_dtypes(include=['object'])
+drop_test_X = test.select_dtypes(include=['object'])
+#drop bad predictive value for LableEncoder
+Object_Columns=[]
+for columns in train.columns:
+    if train[columns].dtype == 'object':
+        Object_Columns.append(columns)
+good_columns=[]
+for columns in Object_Columns:
+    if set(train[columns]) == set(test[columns]):
+        good_columns.append(columns)
+bad_columns = list(set(Object_Columns)-set(good_columns))
+a=drop_X.drop(bad_columns,axis=1)
+b=drop_test_X.drop(bad_columns,axis=1)
+
+#fill the mising value using SimpleImputer:
+SI= SimpleImputer(strategy='constant',fill_value='None')
+SI_X = pd.DataFrame(SI.fit_transform(a))
+SI_Test_X= pd.DataFrame(SI.fit_transform(b))
+SI_X.columns = a.columns
+SI_Test_X.columns = b.columns
+#encode the category data:
+LE=LabelEncoder()
+for columns in set(good_columns):
+     a[columns] = LE.fit_transform(SI_X[columns])
+     b[columns] = LE.transform(SI_Test_X[columns])
+
+#for numerical part:
+number_X = train.select_dtypes(exclude=['object'])
+number_test_X = test.select_dtypes(exclude=['object'])
+#fill the mising value using SimpleImputer:
+SI_Median = SimpleImputer(strategy='median')
+SI_Median_X = pd.DataFrame(SI_Median.fit_transform(number_X))
+SI_Median_test_X = pd.DataFrame(SI_Median.transform(number_test_X))
+SI_Median_X.columns = number_X.columns
+SI_Median_test_X.columns = number_test_X.columns
+
+#combine numerical part and categorical part:
+union_x=pd.concat([SI_Median_X,a],axis=1)
+union_test_x=pd.concat([SI_Median_test_X,b],axis=1)
+
+#Using Linear Regression model:
+bestm=LinearRegression()
+bestm.fit(union_x,Train_y)
+bestprediction=bestm.predict(union_test_x)
+predictionframe = pd.DataFrame({'Id':test.Id,
+                       'SalePrice': bestprediction})
+predictionframe.to_csv('submission.csv', index=False)
+
+sns.regplot(x=predictionframe['Id'],y=predictionframe['SalePrice'])
