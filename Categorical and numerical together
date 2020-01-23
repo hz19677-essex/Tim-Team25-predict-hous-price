@@ -24,6 +24,7 @@ Object_Columns=[]
 for columns in train.columns:
     if train[columns].dtype == 'object':
         Object_Columns.append(columns)
+good_columns = []
 for columns in Object_Columns:
     if set(train[columns]) == set(test[columns]):
         good_columns.append(columns)
